@@ -7,10 +7,10 @@
 int main(void) {
     _T1IF = 0;
     _T1IE = 0;
-    TMR1 = 0x0000;
-    PR1 = 0x7A12;
-    T1CONbits.TCKPS = 3;
-    T1CONbits.TON = 1;
+    //TMR1 = 000;
+    PR1 = 0x3000;
+    T1CONbits.TCKPS = 3;    //presclaire
+    T1CONbits.TON = 1;      //Lancement du tmr1
 
     LED_TRIS = 0;
     
@@ -28,6 +28,9 @@ int main(void) {
                 {
                     _T1IF = 0;
                     demoState = BLINK_LED;
+                    T1CONbits.TON = 0;      //Arrêt du tmr1
+                    TMR1 = 0x0000;
+                    T1CONbits.TON = 1;      //Lancement du tmr1
                 }
                 // Add other idle tasks here...
                 break;
@@ -35,6 +38,7 @@ int main(void) {
             case BLINK_LED:
                 LED ^= 1; // Toggle the LED
                 demoState = IDLE;
+
                 
                 break;
 

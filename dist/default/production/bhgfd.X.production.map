@@ -66,9 +66,9 @@ Default Scalar Model: Small
 section                    address   length (PC units)   length (bytes) (dec)
 -------                    -------   -----------------   --------------------
 .text                        0x200                0xce           0x135  (309)
-.text                        0x2ce                0x58            0x84  (132)
+.text                        0x2ce                0x5c            0x8a  (138)
 
-                 Total "program" memory used (bytes):          0x1b9  (441) <1%
+                 Total "program" memory used (bytes):          0x1bf  (447) <1%
 
 
 "data" Memory  [Origin = 0x800, Length = 0x4000]
@@ -231,18 +231,18 @@ __FUID3
 .comment
  *(.comment)
 
-.debug_info       0x000000        0x725
+.debug_info       0x000000        0x734
  *(.debug_info)
- .debug_info      0x000000        0x725 build/default/production/newmainXC16.o
+ .debug_info      0x000000        0x734 build/default/production/newmainXC16.o
  *(.gnu.linkonce.wi.*)
 
 .debug_abbrev     0x000000         0xee
  *(.debug_abbrev)
  .debug_abbrev    0x000000         0xee build/default/production/newmainXC16.o
 
-.debug_line       0x000000        0x126
+.debug_line       0x000000        0x128
  *(.debug_line)
- .debug_line      0x000000        0x126 build/default/production/newmainXC16.o
+ .debug_line      0x000000        0x128 build/default/production/newmainXC16.o
 
 .debug_frame      0x000000         0x2e
  *(.debug_frame)
@@ -1373,6 +1373,6 @@ __c30_signature
  __c30_signature
                   0x0000d8          0x6 c:/program files/microchip/xc16/v2.10/bin/bin/../../lib\libc99-pic30-elf.a(data_init_standard.o)
 
-.text             0x0002ce         0x58
- .text            0x0002ce         0x58 build/default/production/newmainXC16.o
+.text             0x0002ce         0x5c
+ .text            0x0002ce         0x5c build/default/production/newmainXC16.o
                   0x0002ce                  _main
