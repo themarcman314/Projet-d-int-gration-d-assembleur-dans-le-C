@@ -13,11 +13,12 @@
 
 int main(void) {
     // Microstick II red LED is on PORT A, PIN 0
-    LED_TRIS = 0; // set as output
+    TRISA = 0;
     while(1) {
-        int i = 100000;
-        while(i--); // wait a while
-        LED_LATCH = !LED_LATCH; // toggle the LED
+        long long int i = 100000;
+        while(i--);
+        LATA = !LATA ;
+
     }
     return 0;
 }
