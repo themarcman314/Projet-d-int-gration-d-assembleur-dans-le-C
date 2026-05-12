@@ -11,21 +11,22 @@
 
 int main(void) {
     // Microstick II red LED is on PORT A, PIN 0
-    //TRISA = 0;
-//    LATA = 1;
     asm (
     "MOV 0x0, WREG\n"
-    "MOV WREG, TRISA"
+    "MOV WREG, TRISA\n"
+    "MOV #0, W2"
     );
     
-    while(1) {
-        long int i = 0xffff; 
-        while(i--);
-        asm (
-        "COM LATA, WREG\n"
-        "MOV WREG, LATA"
-        );
-        //LATA = !LATA;
-    }
+    asm (
+    "LOOP:\n"
+    "MOV #0xffff, W1\n" // reset counter variable
+    "LOOP_WAIT:\n"      // while counter is not over...
+    "SUB #1, W1\n"        // substract 1 from reset counter
+    "BRA NZ, LOOP_WAIT\n" // branch if result of previous operation is non 0
+    "COM LATA, WREG\n"  // store complement of LATA in WREG
+    "MOV WREG, LATA\n"  // toggle the LED
+    "BRA LOOP"          // do it all again
+    );
+    
     return 0;
 }
