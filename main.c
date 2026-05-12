@@ -14,14 +14,18 @@ int main(void) {
     //TRISA = 0;
 //    LATA = 1;
     asm (
-    "MOV 0x0, W0\n"
-    "MOV W0, TRISA"
+    "MOV 0x0, WREG\n"
+    "MOV WREG, TRISA"
     );
     
     while(1) {
         long int i = 0xffff; 
         while(i--);
-        LATA = !LATA;
+        asm (
+        "COM LATA, WREG\n"
+        "MOV WREG, LATA"
+        );
+        //LATA = !LATA;
     }
     return 0;
 }
