@@ -9,27 +9,33 @@
 #include "xc.h"
 #include <string.h>
 
+
+#pragma FOSCSEL_FNOSC = FRC // set Fast RC as oscillator, default is 7.27 MHz
+
+
 void uart_init(void);
 
 
 int main(void) {
-
     uart_init();
     
-    char msg[] = "Hello World!\r\n";
-    
+    char msg[20] = "";
+    unsigned long count = 0;
     while(1) {
+        sprintf(msg, "Hello World!%lu\r\n", count++);
         for(int i=0; i < strlen(msg); i++) {
-            U1TXREG |= msg[i]; // write to tx buffer
-            //while()
+            U1TXREG = msg[i]; // write to tx buffer
+            while(!(U1STA & 1<<8)); // wait until we are finished transmitting
         }
-        unsigned long i = 0xffffff;
+        unsigned long i = 0xffff;
         while(i--); // wait a little before sending again
-        
     }
 }
 
 void uart_init(void) {
+    // configure baudrate
+    U1BRG = 1; // close enough to 115200
+    
     // we want to use pins 21 (RB10) and 22 (RB11)
     // for UART
     // RB10 as Rx and RB11 as Tx
@@ -49,6 +55,9 @@ void uart_init(void) {
     U1MODE |= 1 << 15; // set UARTEN (UART enable bit)
     U1STA |= 1 << 12; // Rx controlled by UART1
     U1STA |= 1 << 10; // enable Tx
+    
+    unsigned int i = 0xffffff;
+    while(i--); // wait a little
     
     //TODO: configure baudrate
 }
