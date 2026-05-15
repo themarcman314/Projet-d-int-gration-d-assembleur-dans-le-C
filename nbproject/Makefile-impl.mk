@@ -24,7 +24,11 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
+<<<<<<< HEAD
 PROJECTNAME=bhgfd.X
+=======
+PROJECTNAME=blinky.X
+>>>>>>> source_project/master
 
 # Active Configuration
 DEFAULTCONF=default
