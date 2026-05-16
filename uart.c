@@ -5,11 +5,11 @@
 
 #include "xc.h"
 
-void MYUART_WriteChar(char c);
+static void MYUART_WriteChar(char c);
 
 void uart_init(void) {
     // configure baudrate
-    U1BRG = 1; // close enough to 115200
+    U1BRG = 1U; // close enough to 115200
     
     // we want to use pins 21 (RB10) and 22 (RB11)
     // for UART
@@ -18,20 +18,20 @@ void uart_init(void) {
     
     // apparently once UART is enabled TRIS settings are overwritten anyways
     // so this should be redundant
-    TRISB &= ~(1 << 10); // set RB11 as output by clearing the pin
-    TRISB |= 1 << 15; // set RB10 (pin21) to input
+    TRISB &= ~(1U << 10U); // set RB11 as output by clearing the pin
+    TRISB |= 1U << 15U; // set RB10 (pin21) to input
     
     // bits 0 to 4 of RPINR18 register set where the input pin of UART1 receive is mapped
     // see DS70291G page 128
-    RPINR18 |= 10; // set RP10 to UART1 input
-    RPOR5 |= (0b00011 << 8); // set RP11 to UART1 output
+    RPINR18 |= 10U; // set RP10 to UART1 input
+    RPOR5 |= (0b00011 << 8U); // set RP11 to UART1 output
     
-    U1MODE |= 1 << 11; // disable flow control
-    U1MODE |= 1 << 15; // set UARTEN (UART enable bit)
-    U1STA |= 1 << 12; // Rx controlled by UART1
-    U1STA |= 1 << 10; // enable Tx
+    U1MODE |= 1U << 11U; // disable flow control
+    U1MODE |= 1U << 15U; // set UARTEN (UART enable bit)
+    U1STA |= 1U << 12U; // Rx controlled by UART1
+    U1STA |= 1U << 10U; // enable Tx
     
-    unsigned int i = 0xffffff;
+    unsigned int i = 0xffffU;
     while(i--); // wait a little
 }
 
@@ -46,7 +46,7 @@ int write(int handle, void *buffer, unsigned int len)
     return (len);
 }
 
-void MYUART_WriteChar(char c) {
+static void MYUART_WriteChar(char c) {
     if(c == '\n') MYUART_WriteChar('\r');
     U1TXREG = c; // write to tx buffer
     while(!(U1STA & 1<<8)); // wait until we are finished transmitting
