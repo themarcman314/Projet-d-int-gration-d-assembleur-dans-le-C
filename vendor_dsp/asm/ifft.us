@@ -1,0 +1,140 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; This Complex DIF IFFT implementation expects that the input data is a
+; complex vector such that the magnitude of the real and imaginary parts
+; of each of its elements is less than 0.5. If greater or equal to this
+; value the results could produce saturation.
+;
+; Also, the program performs an implicit scaling of 1/2 for every stage
+; to the intermediate values, so that the output values are scaled by a
+; factor of 1/N, with N the length of the FFT (which is desired for the
+; computation of the inverse transform).
+;
+; NOTE: input is expected in bit reverse ordering, while output is produced
+; in natural (sequential) ordering.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	.nolist
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _IFFTComplexIP: Complex (in-place) DIF IFFT.
+;
+; Operation:
+;	F(k) = 1/N*sum_n (f(n)*WN(-kn)), WN(-kn) = exp[(j*2*pi*k*n)/N],
+;
+; n in {0, 1,... , N-1}, and
+; k in {0, 1,... , N-1}, with N = 2^m.
+;
+; Input:
+;	w0 = number stages in FFT (log2NVal)
+;	w1 = ptr to complex source vector (srcCV)
+;	w2 = ptr to complex twiddle factors (twidFactors)
+;	w3 = COEFFS_IN_DATA, or memory program page with twiddle factors.
+; Return:
+;	w0 = ptr to source vector (srcCV)
+;
+; NOTE: the complex source vector MUST be modulo 2*N word aligned for
+;	the implicit bit reverse operation to succeed.
+;
+; System resources usage:
+;	{w0,w3}		used, not restored
+; plus resources from FFTComplexIP and BitReverseComplex.
+;
+; DO and REPEAT instruction usage.
+;	no DO intructions
+;	no REPEAT intructions
+
+
+;............................................................................
+
+	; External symbols.
+	.extern	_BitReverseComplex
+	.extern	_FFTComplexIP
+
+	.global	_IFFTComplexIP	; export
+_IFFTComplexIP:
+
+;............................................................................
+
+	; Save working registers.
+	; none to save...
+
+;............................................................................
+
+	push.d	w2				; save return value (srcCV)
+
+;............................................................................
+
+	; Compute IFFT using DIF FFT algorithm.
+	push	w0				; save log2NVal
+	push.d	w2				; save pointer to srcCV
+	call _FFTComplexIP
+	pop.d	w2				; restore pointer to srcCV
+	pop	w0				; restore log2NVal
+
+	; Finally, unscramble results back to natural order.
+	call _BitReverseComplex
+
+;............................................................................
+
+	pop.d	w0				; restore return value
+
+;............................................................................
+
+	; Restore working registers.
+	; none to restore...
+
+;............................................................................
+
+	return	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

@@ -1,0 +1,336 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _VectorConvolve: Vector convolution.
+;
+; Operation:
+;	y[n] = sum_(k=0:n){x[k]*h[n-k]},	0 <= n < M
+;	y[n] = sum_(k=n-M+1:n){x[k]*h[n-k]},	M <= n < N
+;	y[n] = sum_(k=n-M+1:N-1){x[k]*h[n-k]},	N <= n < N+M-1
+;
+; Input:
+;	w0 = N, number elements in vector one
+;	w1 = M, number elements in vector two, M <= N
+;	w2, w3 = y, ptr to destination vector, with (N + M - 1) elements
+;	w4, w5 = x, ptr to source vector one
+;	w6, w7 = h, ptr to source vector two
+; Return:
+;	w0 = y, ptr to destination vector
+;
+; System resources usage:
+;	{w0..w7}	used, not restored
+;	{w8..w10}	saved, used, restored
+;	 AccuA		used, not restored
+;	 CORCON		saved, used, restored
+;
+; DO and REPEAT instruction usage.
+;	2 level DO instruction
+;	no REPEAT intructions
+
+;............................................................................
+
+	.global	_VectorConvolve	; export
+_VectorConvolve:
+
+
+PUSH.D w2                        ; Save return value
+
+	push.d	w8				; {w8:w9} to TOS
+	push.d	w10				; {w10:w11} to TOS
+	PUSH 12
+	
+	offsetsetup w3, w8
+	offsetsetup w5, w8
+	offsetsetup w7, w8
+;............................................................................
+	;.if UNIFIED == 1
+		.ifndef PSV_ON
+			PUSH	DSRPAG
+			PUSH 	DSWPAG
+			MOVPAG w7, DSRPAG
+			MOVPAG w3, DSWPAG
+		.endif
+		RRNC   w2, w2
+		RRNC   w4, w4
+		RRNC   w6, w6
+	;.endif
+	
+	; Save working registers.
+	
+;............................................................................
+
+	; Prepare CORCON for fractional computation.
+	push	CORCON
+	fractsetup	w8
+
+;............................................................................
+
+	MOV w5, w11                 ; Save w5, w6 to reuse these registers in MAC operation
+	MOV w6, w12
+	
+	; First stage: y[n] = sum_(k=0:n){x[k]*h[n-k]}, 0 <= n < M.
+
+	; Prepare operation.
+	dec	w1,w3				; w3 = M-1
+	clr	w10					; w10= 0
+	PUSH w0                  ;;;;;;;;;;;; Save W0
+	; Perform operation.
+	do	w3,_endOutFirst		; {	; do (M-1)+1 times
+		PUSH W11
+		PUSH DSRPAG          ;Push updated W7
+		; Prepare operation.
+		mov	w4,w8				; w8-> x[0]
+		mov	w12,w9				; w9-> h[n]
+		clr	a				; a  = 0
+
+		; Perform operation.
+		do	w10,_endInFirst		; {	; do n+1 times
+			.ifndef PSV_ON
+				MOV DSRPAG, w7
+				MOVPAG w11, DSRPAG
+			.endif
+			mov	[w8++],w5			; w5 = x[k]
+								; w8-> x[k+1]
+			.ifndef PSV_ON
+				MOV DSRPAG, w11
+				MOVPAG w7, DSRPAG
+			.endif
+			mov	[w9--],w6			; w6 = h[n-k]
+								; w9-> h[n-k-1]
+		_endInFirst:
+			mac	w5*w6,a				; a  = x[k]*h[n-k]
+	; }
+
+		sac.r	a,[w2++]			; y[n] store
+
+		; Update for next operation.
+
+		.ifndef PSV_ON
+			POP W7
+			POP W11
+			MOVPAG W7, DSRPAG
+		.endif
+		MOV	[w12++],w0				; w12-> h[n+1] ;; Dummy move to w0
+	_endOutFirst:
+		inc	w10,w10				; w10++
+	; }
+
+
+
+
+
+
+	; Update for next stage.
+	MOV	[w12--],w0				; w12-> h[M-1] ;; Dummy move to w0
+	.ifndef PSV_ON
+		MOV DSRPAG, W7
+		MOVPAG W11, DSRPAG
+	.endif
+	MOV	[w4++],w0				; w3-> x[1]
+	;.ifndef PSV_ON
+	;	MOV DSRPAG, W11
+	;.endif
+	; Second stage: y[n] = sum_(k=n-M+1:n){x[k]*h[n-k]}, M <= n < N. 
+	; ONLY if M < N!!!
+
+	; Prepare operation.
+	POP W0            ;;;;; Restore w0 from stack
+	
+	sub	w0,w1,w10			; w10= N-M
+	bra	le,_begThird			; M == N (skip second stage)
+	dec	w10,w10				; w10= N-M-1
+
+	; Perform operation.
+	do	w10,_endOutSecond	; {	; do (N-M-1)+1 times
+	.ifndef PSV_ON
+		MOV DSRPAG, W11
+		PUSH W11               ;Push Updated W11
+		PUSH W7
+	.endif
+	; Prepare operation.
+	mov	w4,w8				; w8-> x[k]
+	mov	w12,w9				; w9-> h[M-1]
+	clr	a		     		; a  = 0
+	
+	.ifndef PSV_ON
+		MOVPAG w7, DSRPAG
+	.endif
+	
+	; Perform operation.
+	do	w3,_endInSecond		; {	; do (M-1)+1 times
+	
+	.ifndef PSV_ON
+		MOV DSRPAG, w7
+		MOVPAG w11, DSRPAG
+	.endif
+			
+	mov	[w8++],w5			; w5 = x[k]
+						; w8-> x[k+1]
+	.ifndef PSV_ON
+		MOV DSRPAG, w11
+		MOVPAG w7, DSRPAG
+	.endif
+	mov	[w9--],w6			; w6 = h[n-k]
+						; w9-> h[n-k-1]
+_endInSecond:
+	mac	w5*w6,a				; a  = x[k]*h[n-k]
+; }
+
+	sac.r	a,[w2++]			; y[n] store
+
+	; Update for next operation.
+	
+
+	.ifndef PSV_ON
+		POP W7
+		POP W11
+		MOVPAG w11, DSRPAG
+	.endif
+
+	
+	;.ifndef PSV_ON
+	;	MOV DSRPAG, w11
+	;.endif
+_endOutSecond:	
+	MOV	[W4++],w0				; w4-> x[k]
+; }
+
+	; Third stage: y[n] = sum_(k=n-M+1:N-1){x[k]*h[n-k]}, N <= n < N+M-1.
+	; ONLY if M > 1!!!
+
+
+
+
+
+
+
+
+
+_begThird:
+	; Prepare operation.
+	dec	w3,w3				; w7 = (M-1)-1
+	bra	lt,_noMore			; M == 1 (skip third stage)
+
+	; Perform operation.
+	do	w3,_endOutThird		; {	; do (M-2)+1 times
+	
+	.ifndef PSV_ON
+		MOV DSRPAG, W11
+		PUSH W11              ; Push updated W11
+		PUSH W7
+	.endif
+	; Prepare operation.
+	mov	w4,w8				; w8-> x[k]
+	mov	w12,w9				; w9-> h[M-1]
+	clr	a				; a  = 0
+
+	.ifndef PSV_ON
+		MOVPAG W7, DSRPAG
+	.endif
+	
+	; Perform operation.
+	do	w3,_endInThird		; {	; do N+M-1-n times
+	.ifndef PSV_ON
+		MOV DSRPAG, w7
+		MOVPAG w11, DSRPAG
+	.endif
+	mov	[w8++],w5			; w5 = x[k]
+						; w8-> x[k+1]
+	.ifndef PSV_ON
+		MOV DSRPAG, w11
+		MOVPAG w7, DSRPAG
+	.endif
+	mov	[w9--],w6			; w6 = h[n-k]
+						; w9-> h[n-k-1]
+_endInThird:
+	mac	w5*w6,a				; a  = x[k]*h[n-k]
+; }
+
+	sac.r	a,[w2++]			; y[n] store
+
+	; Update for next operation.
+
+	.ifndef PSV_ON
+		POP W7
+		POP W11
+		;MOV DSRPAG, w7
+		MOVPAG w11, DSRPAG
+	.endif
+	mov	[w4++],w0				; w3-> x[k]
+	;.ifndef PSV_ON
+	;	MOV DSRPAG, w11
+	;.endif
+_endOutThird:
+	dec	w3,w3				; w7--
+; }
+
+_noMore:
+;............................................................................
+	; Restore CORCON.
+	pop	CORCON
+
+;............................................................................
+
+
+
+.ifndef PSV_ON
+	pop DSWPAG
+	pop	DSRPAG
+.endif
+
+	; Restore working registers.
+	pop w12
+	pop.d	w10				; {w10} from TOS
+	pop.d	w8				; {w8:w9} from TOS
+;............................................................................
+	POP.D w0
+	return	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

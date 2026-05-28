@@ -1,0 +1,170 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _VectorCorrelate: Vector correlation (using convolution).
+;
+; Operation:
+;	r[n] = sum_(k=0:N-1){x[k]*y[k+n]},
+; where:
+;	x[n] defined for 0 <= n < N,
+;	y[n] defined for 0 <= n < M, (M <= N),
+;	r[n] defined for 0 <= n < N+M-1,
+;
+; Input:
+;	w0 = N, number elements in vector one
+;	w1 = M, number elements in vector two
+;	w2, w3 = r, ptr to destination vector, with R elements
+;	w4, w5 = x, ptr to source vector one
+;	w6, w7 = y, ptr to source vector two
+; Return:
+;	w0, w1 = r, ptr to destination vector
+;
+; System resources usage:
+;	{w0..w7}	used, not restored
+; plus resuorces from VectorConvolve.
+;
+; DO and REPEAT instruction usage.
+;	1 level DO instruction
+;	no REPEAT intructions
+; plus Do/REPEAT instructions from VectorConvolve.
+
+;............................................................................
+
+	; External symbols.
+	.extern	_VectorConvolve
+
+	.global	_VectorCorrelate	; export
+_VectorCorrelate:
+
+    PUSH.D w2                        ; Save return value
+	push.d	w8				; {w8:w9} to TOS
+	push.d	w10				; {w10:w11} to TOS
+	offsetsetup w3, w8
+	offsetsetup w5, w8
+	offsetsetup w7, w8
+;............................................................................
+	;.if UNIFIED == 1
+		.ifndef PSV_ON
+			PUSH	DSRPAG
+			PUSH 	DSWPAG
+			MOVPAG w7, DSRPAG
+			;MOVPAG w3, DSWPAG
+		.endif
+		;RRNC   w2, w2
+		;RRNC   w4, w4
+		;RRNC   w6, w6
+	;.endif
+	
+	; Save working registers.
+	
+	;PUSH w12
+;............................................................................
+
+	; Prepare CORCON for fractional computation.
+	push	CORCON
+	fractsetup	w8
+	PUSH.D W6
+;............................................................................
+	RRNC W6, W6
+	MOV W7, W9               ; Copy higher 16 bit
+	DEC W1, W10
+	SL W10, #1, W10
+	add W6, W10, W11
+	BRA NC, _skip
+	ADDC #0, W9
+	BSET w11, #15
+_skip:
+	LSR W1, W10
+	DEC W10, W10
+	.ifndef PSV_ON
+		MOVPAG    w9, DSWPAG
+	    .endif
+	DO W10, _endRev
+	    .ifndef PSV_ON
+			MOV DSWPAG, W9
+			MOVPAG    w7, DSRPAG
+	    .endif
+	    MOV [W6], W8
+	    .ifndef PSV_ON
+			;MOV	  DSRPAG, W7
+			MOVPAG    w9, DSRPAG
+			MOVPAG	  w7, DSWPAG
+	    .endif
+	    MOV [W11], [W6++]
+	    .ifndef PSV_ON
+			MOV	  DSWPAG, W7
+			MOVPAG    w9, DSWPAG
+	    .endif
+	_endRev:
+	    MOV W8, [W11--]
+
+	POP.D W6
+	POP CORCON
+	
+
+    .ifndef PSV_ON
+	POP	DSWPAG
+	pop	DSRPAG
+    .endif
+	
+	POP.D W10
+	POP.D W8
+	; Then, invoke convolution...
+	call	_VectorConvolve
+
+;............................................................................
+
+
+    POP.D w0
+;............................................................................
+
+	return			; NOTE that w0 is set up by _VectorConvolve
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

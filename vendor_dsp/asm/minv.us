@@ -1,0 +1,407 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS PROVIDED IN AN "AS IS" CONDITION.  NO           *
+;   WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING,    *
+;   BUT NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND    *
+;   FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE     *
+;   COMPANY SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL,  *
+;   INCIDENTAL OR CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.  *
+;                                                                    *
+;   (c) Copyright 2003 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+	.section .libdsp, code
+
+	.global	_MatrixInvert	; export
+_MatrixInvert:
+	lnk	#24                         ; LNK
+	
+	
+;.if UNIFIED == 1
+PUSH.D W2
+.ifndef PSV_ON
+	PUSH DSRPAG
+	PUSH DSWPAG
+	movpag W5, DSRPAG
+	movpag W3, DSWPAG
+.endif
+   RRNC w2, W1
+   RRNC W4, W2
+   RRNC w6, w3
+   MOV [W14-14], w4
+   RRNC w4, w4
+   MOV [W14-10], w5
+   RRNC w5, w5
+   
+;.endif
+
+	mov.d	w8,[w15++]                            ; Save W8, w9
+	mov.d	w10,[w15++]                           ; Save w10, w11
+	mov.d	w12,[w15++]                           ; Save W12, W13
+	mov	w14,[w15++]                           ; Save W14
+
+	mov	w0,w14                                ; W14 = W0 = Number of rows/Columns      
+	mov	w1,w13                                ; W13 = W1 = Dest pointer
+	mov	w3,[w15-38]                           ; save pivot flag ptr in stack  ;; [w15-368 = pivot flag ptr
+	mov	w4,[w15-36]                           ; save swappedrows and swappedcols ;; [w15-36]= swappedrows ptr
+	mov	w5,[w15-34]                           ; save swappedrows and swappedcols ;; [w15-34]= swappedcols ptr
+	mov	w1,[w15-32]			      ;; [w15-32]= Dest ptr
+	mul.uu	w0,#0,w0                              ; w0 = 0
+		
+	mov	w0,[w15-30]                           ; Save w0 ;; [W15-30] = w0 = 0
+	mov	w1,[w15-28]                           ; Save w1 ;; [w15-28] = w1 = dst pointer
+	mov	#0,w0                                 ; w0 = 0;
+	mov	w0,[w15-22]                           ; [w15-22] = 0
+	mov	w0,[w15-20]                           ; [w15-20] = 0
+	mov	w0,[w15-24]                           ; [w15-24] = 0
+	subr	w14,#0,[w15]                          ; try 0-(num of rows/cols)
+	bra	ge,.L75                               ; branch if num of rows/cols is negative
+	mul.uu	w4,#0,w4                              ; w4 = 0
+		
+.L6:
+	mov	[w15-24],w8                           ; w8 = [w15-24]
+	mul.uu	w8,#4,w0                              ; W0 = W8*4
+	mov	[w15-38],w1                           ; W1 = [w15-38], pivot flag ptr
+	add	w1,w0,w12                             ; W12 = W0 + W1, pivot flag ptr + 4*(W8)
+	mov.d	w4,[w12]                              ; [pivot flag ptr + 4*(W8)] = 0
+	
+	sl w8,w9                                      ; w9 = w8 << 1
+	mov	[w15-36],w11                          ; w11 = swappedrows
+	add	w9,w11,w10                            ; w10 = swappedrows + W8*2
+	clr	[w10]                                 ; [swappedrows ptr + W8*2] = 0
+	mov	[w15-34],w7                           ; w7 = [w15-34] = swappedcols
+	add	w9,w7,w3                              ; w3 = swapped cols ptr + W8*2
+	clr	[w3]                                  ; [swapped cols ptr + W8*2] = 0
+	inc	w8,w6                                 ; W6 = W8 + 1
+	mov	w6,[w15-24]                           ; [W15 - 24] = W8 + 1
+	sub	w6,w14,[w15]                          ;
+	bra	lt,.L6
+.L75:
+	sub	w2,w13,[w15]                         ; Check if src ptr == dest ptr
+	bra	z,.L7                                ; branch if equal
+	cp0	w14                                  ; 
+	bra	le,.L77                              ; branch if number of rows/cols is negative
+	mov	w14,[w15-24]                         ; [w15-24] = W14
+.L17:
+	cp0	w14
+	bra	le,.L79
+	mov	w14,w11
+.L16:
+	mov	[w2++],[w13++]
+	mov	[w2++],[w13++]
+	dec	w11,w11
+	bra	nz,.L16
+.L79:
+	mov	[w15-24],w0
+	dec	w0,w5
+	mov	w5,[w15-24]
+	bra	nz,.L17
+.L77:
+	mov	[w15-32],w13                               ; w13 = [w15-32] = dest ptr
+.L7:
+	mov	#0,w2
+	mov	w2,[w15-26]
+	cp0	w14
+	bra	le,.L81
+.L62:
+	mul.uu	w8,#0,w8
+		
+	mov	#0,w6
+	mov	w6,[w15-24]
+	cp0	w14
+	bra	le,.L83
+.L37:
+	mov	[w15-24],w3
+	mul.uu	w3,#4,w0
+	mov	[w15-38],w7
+	add	w7,w0,w0
+	mov.d	[w0],w0
+	mul.uu	w2,#0,w2
+		
+	call	___eqsf2
+	cp0	w0
+	bra	nz,.L24
+	mov	#0,w11
+	cp0	w14
+	bra	le,.L24
+.L36:
+	mul.uu	w11,#4,w0
+	mov	[w15-38],w10
+	add	w10,w0,w0
+	mov.d	[w0],w0
+	mul.uu	w2,#0,w2
+		
+	call	___eqsf2
+	cp0	w0
+	bra	nz,.L30
+	mov	[w15-24],w12
+	mul.ss	w12,w14,w0
+	add	w11,w0,w0
+	mul.uu	w0,#4,w0
+	add	w13,w0,w0
+	mov.d	[w0],w0
+	call	___extendsfdf2
+	bclr	w3,#15
+	call	___truncdfsf2
+	mov	w0,[w15-30]
+	mov	w1,[w15-28]
+	mov.d	w8,w2
+	call	___gesf2
+	cp0	w0
+	bra	lt,.L30
+	mov	[w15-30],w8
+	mov	[w15-28],w9
+	mov	[w15-24],w1
+	mov	w1,[w15-22]
+	mov	w11,[w15-20]
+.L30:
+	inc	w11,w11
+	sub	w11,w14,[w15]
+	bra	lt,.L36
+.L24:
+	mov	[w15-24],w5
+	inc	w5,w11
+	mov	w11,[w15-24]
+	sub	w11,w14,[w15]
+	bra	lt,.L37
+.L83:
+	mov	[w15-20],w2
+	mul.uu	w2,#4,w8
+	mov	[w15-38],w0
+	add	w0,w8,w9
+	mov.d	[w9],w0
+	mov	#0,w2
+	mov	#16256,w3
+	call	___addsf3
+	mov.d	w0,[w9]
+	mov	[w15-22],w7
+	mov	[w15-20],w8
+	sub	w7,w8,[w15]
+	bra	z,.L94
+	mov	#0,w11
+	cp0	w14
+	bra	le,.L95
+	mul.ss	w7,w14,w0
+	mov	[w15-20],w3
+	mul.ss	w3,w14,w2
+	mov	w2,[w15-18]
+	mov	w3,[w15-16]
+	mov	w2,w5
+	mov	w0,w4
+.L43:
+	mul.uu	w4,#4,w2
+	add	w13,w2,w6
+	mov.d	[w6],w8
+	mul.uu	w5,#4,w0
+	add	w13,w0,w3
+	mov	[w3++],[w6++]
+	mov	[w3--],[w6--]
+	mov.d	w8,[w3]
+	inc	w5,w5
+	inc	w4,w4
+	inc	w11,w11
+	sub	w11,w14,[w15]
+	bra	lt,.L43
+.L38:
+	mov	[w15-26],w0
+	
+	sl w0,w11
+	mov	[w15-22],w9
+	mov	[w15-36],w5
+	mov	w9,[w11+w5]
+	mov	[w15-20],w12
+	mov	[w15-34],w1
+	mov	w12,[w11+w1]
+	mov	[w15-18],w7
+	add	w12,w7,w0
+	mul.uu	w0,#4,w0
+	add	w13,w0,w12
+	mov.d	[w12],w0
+	call	___extendsfdf2
+	mov.d	w2,w10
+	mov.d	w0,w8
+	mul.uu	w4,#0,w4
+	mul.uu	w6,#0,w6
+	call	___eqdf2
+	mov	#0,w1
+	cp0	w0
+	bra	z,.L1
+	mov.d	w8,w4
+	mov.d	w10,w6
+	mul.uu	w0,#0,w0
+	mov	#0,w2
+	mov	#16368,w3
+	call	___divdf3
+	call	___truncdfsf2
+	mov	w0,[w15-30]
+	mov	w1,[w15-28]
+	mov	#0,w2
+	mov	#16256,w3
+	mov.d	w2,[w12]
+	cp0	w14
+	bra	le,.L87
+	mov	[w15-18],w10
+	mov	w14,w11
+.L50:
+	mul.uu	w10,#4,w8
+	add	w13,w8,w12
+	mov.d	[w12],w0
+	mov	[w15-30],w2
+	mov	[w15-28],w3
+	call	___mulsf3
+	mov.d	w0,[w12]
+	inc	w10,w10
+	dec	w11,w11
+	bra	nz,.L50
+.L87:
+	mov	#0,w3
+	mov	w3,[w15-24]
+	cp0	w14
+	bra	le,.L89
+.L61:
+	mov	[w15-24],w0
+	mov	[w15-20],w1
+	sub	w0,w1,[w15]
+	bra	z,.L53
+	mul.ss	w0,w14,w4
+	add	w1,w4,w0
+	mul.uu	w0,#4,w0
+	add	w13,w0,w8
+	mov.d	[w8],w10
+	mov	w10,[w15-30]
+	mov	w11,[w15-28]
+	mul.uu	w6,#0,w6
+		
+	mov.d	w6,[w8]
+	cp0	w14
+	bra	le,.L53
+	mov	[w15-18],w12
+	mov	w4,w10
+	mov	w14,w11
+.L60:
+	mul.uu	w10,#4,w8
+	add	w13,w8,w9
+	mul.uu	w12,#4,w0
+	add	w13,w0,w0
+	mov.d	[w0],w0
+	mov	[w15-30],w2
+	mov	[w15-28],w3
+	call	___mulsf3
+	mov.d	w0,w2
+	mov.d	[w9],w0
+	call	___subsf3
+	mov.d	w0,[w9]
+	inc	w12,w12
+	inc	w10,w10
+	dec	w11,w11
+	bra	nz,.L60
+.L53:
+	mov	[w15-24],w7
+	inc	w7,w4
+	mov	w4,[w15-24]
+	sub	w4,w14,[w15]
+	bra	lt,.L61
+.L89:
+	mov	[w15-26],w11
+	inc	w11,w1
+	mov	w1,[w15-26]
+	sub	w1,w14,[w15]
+	bra	lt,.L62
+.L81:
+	dec	w14,w11
+	bra	lt,.L92
+.L73:
+	
+	sl w11,w5
+	mov	[w15-36],w0
+	mov	[w5+w0],w1
+	mov	[w15-34],w12
+	mov	[w5+w12],w0
+	sub	w1,w0,[w15]
+	bra	z,.L65
+	mov	#0,w2
+	mov	w2,[w15-24]
+	cp0	w14
+	bra	le,.L65
+	mov.d	w0,w4
+.L72:
+	mov	[w15-24],w9
+	mul.ss	w9,w14,w0
+	add	w5,w0,w2
+	mul.uu	w2,#4,w2
+	add	w13,w2,w6
+	mov.d	[w6],w8
+	add	w4,w0,w0
+	mul.uu	w0,#4,w0
+	add	w13,w0,w10
+	mov	[w10++],[w6++]
+	mov	[w10--],[w6--]
+	mov.d	w8,[w10]
+	mov	[w15-24],w8
+	inc	w8,w3
+	mov	w3,[w15-24]
+	sub	w3,w14,[w15]
+	bra	lt,.L72
+.L65:
+	dec	w11,w11
+	bra	ge,.L73
+.L92:
+	mov	[w15-32],w1
+	bra	.L1
+.L95:
+	mov	[w15-20],w3
+	mul.ss	w3,w14,w4
+	mov	w4,[w15-18]
+	mov	w5,[w15-16]
+	bra	.L38
+.L94:
+	mov	[w15-20],w1
+	mul.ss	w1,w14,w10
+	mov	w10,[w15-18]
+	mov	w11,[w15-16]
+	bra	.L38
+.L1:
+	mov	w1,w0
+
+	mov	[--w15],w14
+	mov.d	[--w15],w12
+	mov.d	[--w15],w10
+	mov.d	[--w15],w8
+
+.ifndef PSV_ON
+	pop	DSWPAG
+	pop     DSRPAG
+.endif
+	POP.D W0
+	ulnk
+	return
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

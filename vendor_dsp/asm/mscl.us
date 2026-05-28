@@ -1,0 +1,142 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	; Local inclusions.
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _MatrixScale: Matrix scale.
+;
+; Operation:
+;	dstM[i][j] = sclVal * srcM[i][j]
+;
+; Input:
+;	w0 = number rows in source matrix (numRows)
+;	w1 = number cols in source matrix (numCols)
+;		(NOTE: numRows*numCols < 2^14)
+;	w2,w3 = ptr to destination matrix (dstM)
+;	w4,w5 = ptr to source matrix (srcM)
+;	w6 = scale value (sclVal)
+; Return:
+;	w0,w1 = ptr to destination matrix (dstM)
+;
+; System resources usage:
+;	{w0..w5}	used, not restored
+;	 AccuA		used, not restored
+;	 CORCON		saved, used, restored
+;
+; DO and REPEAT instruction usage.
+;	1 level DO instruction
+;	no REPEAT intructions
+
+;............................................................................
+
+	.global	_MatrixScale	; export
+_MatrixScale:
+	PUSH.D W2                            ; Save destination pointer
+
+	offsetsetup w3, w7
+	offsetsetup w5, w7
+;.if UNIFIED == 1	
+
+.ifndef PSV_ON
+	PUSH	DSRPAG
+	PUSH    DSWPAG
+	MOVPAG W5, DSRPAG
+	MOVPAG W3, DSWPAG
+.endif
+    RRNC w2, w2
+    RRNC w4, w3
+;.endif
+
+;............................................................................
+
+	; Save working registers.
+	; None to save...
+
+;............................................................................
+
+	; Prepare CORCON for fractional computation.
+	push	CORCON
+	fractsetup	w5
+
+;............................................................................
+
+	; Prepare operation.
+	MOV W6, W4              ; w4 = sclVal (W6)
+	mul.uu	w0,w1,w0		; w0 = numRows*numCols
+	dec	w0,w0				; w0 = num elements-1
+						    
+
+	; Perform operation.
+	do	w0,_endScl		; {	    ; do (num elems-1)+1 times
+	mov	[w3++],w5			    ; w5 = srcM(n)
+						        ; w3-> srcM(n+1)
+	mpy	w4*w5,a				    ; a=sclVal*srcM(n)
+_endScl:
+	sac.r	a,[w2++]			; dstM[r][c] = sclVal*srcM[r][c]
+						        ; w2-> dstM(n+1)
+						; }
+
+;............................................................................
+
+	                    ; restore CORCON, DSRPAG, DSWPAG.
+	pop	CORCON
+.ifndef PSV_ON
+	POP DSWPAG
+	pop	DSRPAG
+.endif
+;............................................................................
+
+	; Restore working registers.
+	; None to restore...
+	POP.D W0                 ; Return destination pointer
+;............................................................................
+
+	return	
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

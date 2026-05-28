@@ -20,38 +20,46 @@
 void uart_init(void);
 void watchdog_disable(void);
 bool watchdog_did_timeout(void);
-void print_bin(uint32_t);
+void print_bin(uint32_t const val, unsigned const num_bits);
 
 int main(void) {
     watchdog_disable();
     led_init();
     uart_init();
     uint32_t result = 0;
+    uint16_t *result_p_upper = (uint16_t *)&result + 1;
     
     printf("Q number 1: 0b");
-    print_bin(q_num_1);
+    print_bin(q_num_1, sizeof(q_num_1)* 8);
     printf("Q number 2: 0b");
-    print_bin(q_num_2);
+    print_bin(q_num_2, sizeof(q_num_1)* 8);
 
     printf("Q1 x Q2 = 0b");
     CORCON &= ~(1); // explicitely enable fractional multiply for dsp (should be default)
+    
     asm(
         "clr A\n"
-        "mov %0, w4\n"
-        "mov %1, w5\n"
+        "mov %1, w4\n"
+        "mov %2, w5\n"
         "mac w4*w5, A\n"
-        :
-        :"r" (q_num_1), "r" (q_num_2)
+        "sac A, [%0]\n" // store upper word of A
+        "SFTAC A, #-16\n" // shift accumulator up by 16
+        "sac A, [--%0]\n" // store other half of A
+        : "+r" (result_p_upper)
+        : "r" (q_num_1), "r" (q_num_2)
         :"w4", "w5", "A"
     );
-    print_bin(result);
+    print_bin(result, sizeof(result) * 8U);
+    float result_f = Fract2Float((fractional) q_num_1);
+    printf("float: %f\n", result_f );
+    
     while(1) {
     }
 }
 
-void print_bin(uint32_t val)
+void print_bin(uint32_t const val, unsigned const num_bits)
 {
-    for (int i = 31; i >= 0; i--) {
+    for (int i = num_bits; i >= 0; i--) {
         // Shift, mask with 1, and convert to char
         putchar(((val >> i) & 1) ? '1' : '0');
     }

@@ -1,0 +1,146 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS PROVIDED IN AN "AS IS" CONDITION.  NO           *
+;   WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING,    *
+;   BUT NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND    *
+;   FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE     *
+;   COMPANY SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL,  *
+;   INCIDENTAL OR CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.  *
+;                                                                    *
+;   (c) Copyright 2003 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _VectorMultiply: Vector Multiply.
+;
+; Operation:
+;	dstV[n] = srcV1[n] * srcV2[n], with
+;
+; n in {0, 1,... , numElems-1}
+;
+; Input:
+;	w0 = number elements in vector(s) (numElems)
+;	w2, w3 = ptr to destination vector (dstV)
+;	w4, w5 = ptr to source one vector (srcV1)
+;	w6, w7 = ptr to source two vector (srcV2)
+; Return:
+;	w0 = ptr to destination vector (dstV)
+;
+; System resources usage:
+;	{w0..w5}	used, not restored
+;	 AccuA		used, not restored
+;	 CORCON		saved, used, restored
+;
+; DO and REPEAT instruction usage.
+;	1 level DO instruction
+;	no REPEAT intructions
+
+;............................................................................
+
+	.global	_VectorMultiply	; export
+_VectorMultiply:
+
+;............................................................................
+
+	PUSH.D	w2				; save return value (dstV)
+	offsetsetup w3, w1
+	offsetsetup w5, w1
+	offsetsetup w7, w1
+;............................................................................
+	;.if UNIFIED == 1
+		.ifndef PSV_ON
+			push	DSRPAG
+			PUSH 	DSWPAG
+			MOVPAG w7, DSRPAG
+			MOVPAG w3, DSWPAG
+		.endif
+		RRNC   w2, w2
+		RRNC   w4, w4
+		RRNC   w6, w6
+	;.endif
+;............................................................................
+
+	; Prepare CORCON for fractional computation.
+	push	CORCON
+	fractsetup	w1
+
+
+;............................................................................
+
+	; Prepare operation.
+	dec	w0,w0				; w0 = numElems-1
+
+	MOV w4, w1              ; save w4, w5 for mpy reuse
+	MOV w5, w3
+	; Perform operation.
+	do	w0,_endMul		; {	; do (numElems-1)+1 times
+	.ifndef PSV_ON
+			MOV DSRPAG, w7
+			MOVPAG w3, DSRPAG
+	.endif
+	mov	[w1++],w4			; w4 = srcV[n]
+						; w2-> srcV[n+1]
+	.ifndef PSV_ON
+			MOV DSRPAG, w3
+			MOVPAG w7, DSRPAG
+	.endif
+	mov	[w6++],w5			; w5 = srcV2[n]
+						; w3-> srcV2[n+1]
+	mpy	w4*w5,a				; a = srcV1[n]*srcV2[n]
+_endMul:
+	sac.r	a,[w2++]			; dstV[n] = srcV1[n]*srcV2[n]
+						; w1-> dstV[n+1]
+; }
+
+;............................................................................
+
+
+	; restore CORCON.
+	pop	CORCON
+
+;............................................................................
+
+.ifndef PSV_ON
+	pop	DSWPAG
+	POP DSRPAG
+.endif
+;............................................................................
+	POP.D	w0				; restore return value
+
+;............................................................................
+	return	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

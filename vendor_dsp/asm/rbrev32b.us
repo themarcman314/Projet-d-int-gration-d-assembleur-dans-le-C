@@ -1,0 +1,137 @@
+/**********************************************************************
+* © 2022 Microchip Technology Inc.
+*
+* FileName:        bitRev.us
+* Dependencies:    Header (.h/.inc) files if applicable, see below
+* Processor:       dsPIC33Fxxxx/PIC24Hxxxx
+* Compiler:        MPLAB® C30 v2.01.00 or higher
+*;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+*
+* REVISION HISTORY:
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* Author            Date      Comments on this revision
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* MCHP	           22Sept07  First release of source file
+* MCHP             22May22   Added Support for UMM pointers.
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*
+* ADDITIONAL NOTES:
+*
+**********************************************************************/
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+	.nolist
+	.include	"dspcommon.inc"		; MODCON, XBREV
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+		
+	.global _BitReverseReal32bIP
+
+
+;............................................................................
+_BitReverseReal32bIP:
+;............................................................................
+			PUSH.D  W2
+			offsetsetup w3, w7
+
+; Context Save
+			PUSH	MODCON
+			PUSH	XBREV
+;............................................................................
+; MODCONbits.BWM=0b0111  ; W2 for Bit reverse
+; XBREVbits.BREN=1
+; XBREVbits.XB= N 
+; N-----> Size of the real FFT, eg: for 1024 point real FFT "N" should be 1024
+			.ifndef PSV_ON
+				push	DSRPAG
+				PUSH 	DSWPAG
+				MOVPAG W3, DSRPAG
+				MOVPAG W3, DSWPAG
+			.endif
+			RRNC 	w2, w1
+			
+			MOV		#0x0700,w7				; Uses w7 for bit reverse
+			MOV		w7,MODCON
+			MOV		#0x8000,w7				; Enable bit reverse addresing
+			IOR		w0,w7,w7
+			MOV		w7,XBREV				; Element N (equivalent to a
+											; sample N/2 for complex data)
+			LSR		w0,#1,w0
+			DEC 	w0,w0					; w6=(N/2)-1
+			MOV		w1,w7					
+
+
+			DO 		w0,BREV_END
+            CP		w7,w1					; w1-w7 ?
+			BRA		le,BREV_SKIP			; w1 <= w7 => skip to next
+
+											; Swap 32-bit Complex pairs   
+            MOV   	[w1+0],w2    			
+			MOV		[w1+2],w3
+            MOV   	[w1+4],w4    			
+			MOV		[w1+6],w5
+
+			MOV		[w7++],[w1++]
+			MOV		[w7++],[w1++]			
+			MOV		[w7++],[w1++]
+			MOV		[w7++],[w1++]
+
+            MOV   	w5,[--w7]         		; Swap Real Data
+            MOV   	w4,[--w7]  
+            MOV   	w3,[--w7]         		; Swap Real Data
+            MOV   	w2,[--w7] 
+			SUB		w1,#8,w1
+
+BREV_SKIP:     
+
+
+            ADD		w1,#8,w1
+BREV_END:	MOV		[w7],[w7++]				; bit reverse update
+											; (only on data writes!!!)
+
+		.ifndef PSV_ON
+			POP		DSWPAG
+			POP 	DSRPAG
+		.endif
+;............................................................................
+; Context Restore
+			POP		XBREV
+			POP		MODCON
+			POP.D 	W0
+;............................................................................
+			RETURN	
+

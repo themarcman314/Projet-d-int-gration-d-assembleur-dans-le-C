@@ -1,0 +1,106 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+	.nolist
+	.include	"dspcommon.inc"		; FIR filter structure
+	.list
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.section .libdsp, code
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _FIRInterpDelayInit: initialization to zero of FIR interpolator filter delay.
+;
+; Operation:
+;	FIRFilter->delayBase[m] = 0, 0 <= m < FIRFilter->numCoeffs/rate (= M/R)
+;
+; Input:
+;	w0,w1 = h, ptr FIR filter structure (see included file)
+;	w2 = R, rate of interpolation R (from 1)
+; Return:
+;	(void)
+;
+; System resources usage:
+;	{w0..w5}	used, not restored
+;
+; DO and REPEAT instruction usage.
+;	no DO instructions
+;	1 level REPEAT intruction
+
+	.global	_FIRInterpDelayInit	; export
+_FIRInterpDelayInit:
+	RRNC w0, w0
+.ifndef PSV_ON
+	push DSRPAG
+	PUSH DSWPAG
+	offsetsetup w1, w5
+	MOVPAG w1, DSRPAG
+	mov	[w0+oDelayBase_O],w1	
+	;offsetsetup w1, w5
+	movpag w1, DSWPAG
+.endif
+;............................................................................
+	; Prepare operation.
+	MOV  W2, W1
+	mov	[w0+oNumCoeffs],w2		; w2 = M
+	; Compute (M/R)-1 = q-1:
+	mov	w1,w3				; w3 = R (increment till M)
+	mov	#0x0,w4				; w4 = 0 (increment till q-1)
+_divide:
+	cp	w2,w3				; M-R*(p+1) ?
+	bra	z,_done				; M-R*(p+1)=0 => p=q-1 (done)
+	inc	w4,w4				; w4 = p+1
+	add	w1,w3,w3			; w3 = R*(p+2)
+	bra	_divide
+_done:
+						; now:
+						; w4 = (M/R)-1
+	MOV	[w0+oDelayBase],w2		; w2-> delayBase[0]
+	RRNC W2, W2
+	mov	#0,w0				; w0 = 0
+	
+;............................................................................
+	; Perform operation.
+	repeat	w4				; do (M/R-1)+1 times
+	mov	w0,[w2++]			; delayBase[m] = 0
+						; w2-> delayBase[m+1]
+;............................................................................
+.ifndef PSV_ON
+	pop DSWPAG
+	pop	DSRPAG
+.endif
+	return	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.end
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

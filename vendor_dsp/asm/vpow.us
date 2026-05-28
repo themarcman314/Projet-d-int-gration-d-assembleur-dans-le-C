@@ -1,0 +1,129 @@
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	.nolist
+	.include	"dspcommon.inc"		; fractsetup
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; _VectorPower: Vector Power.
+;
+; Operation:
+;	powVal = sum (srcV[n] * srcV[n]), with
+;
+; n in {0, 1,... , numElems-1}
+;
+; Input:
+;	w0 = number elements in vector(s) (numElems)
+;	w2, w3 = ptr to source vector (srcV)
+; Return:
+;	w0 = power value (powVal)
+;
+; System resources usage:
+;	{w0..w2}	used, not restored
+;	{w4}		used, not restored
+;	 AccuA		used, not restored
+;	 CORCON		saved, used, restored
+;
+; DO and REPEAT instruction usage.
+;	no DO intructions
+;	1 level REPEAT instruction
+
+;............................................................................
+
+	.global	_VectorPower	; export
+_VectorPower:
+
+	offsetsetup w3, w1
+
+;............................................................................
+;.if UNIFIED == 1
+		.ifndef PSV_ON
+			push	DSRPAG
+			MOVPAG w3, DSRPAG
+		.endif
+		RRNC   w2, w2
+	;.endif
+
+;............................................................................
+
+	; Prepare CORCON for fractional computation.
+	push	CORCON
+	fractsetup	w1
+
+;............................................................................
+
+	; Prepare operation.
+	dec	w0,w0				; w0 = numElems-1
+	clr	a				; a = 0
+
+	; Perform operation.
+	do	w0,_endPow		; {	; do (numElems-1)+1 times
+	mov	[w2++],w4			; w4 = srcV[n]
+						; w1-> srcV[n+1]
+_endPow:
+	mac	w4*w4,a				; a += srcV[n]*srcV[n]
+; }
+
+;............................................................................
+
+	sac.r	a,w0				; powVal return value
+
+;............................................................................
+
+	; restore CORCON.
+	pop	CORCON
+
+;............................................................................
+
+.ifndef PSV_ON
+	pop	DSRPAG
+.endif
+;............................................................................
+
+	return	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; OEF

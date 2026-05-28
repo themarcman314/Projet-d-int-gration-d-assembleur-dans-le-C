@@ -1,0 +1,142 @@
+/**********************************************************************
+* © 2022 Microchip Technology Inc.
+*
+* FileName:        toneGen.s
+* Dependencies:    Header (.h/.inc) files if applicable, see below
+* Processor:       dsPIC33Fxxxx/PIC24Hxxxx
+* Compiler:        MPLAB® C30 v2.01.00 or higher
+*
+;*********************************************************************
+;                                                                    *
+;                       Software License Agreement                   *
+;                                                                    *
+;   The software supplied herewith by Microchip Technology           *
+;   Incorporated (the "Company") for its dsPIC controller            *
+;   is intended and supplied to you, the Company's customer,         *
+;   for use solely and exclusively on Microchip dsPIC                *
+;   products. The software is owned by the Company and/or its        *
+;   supplier, and is protected under applicable copyright laws. All  *
+;   rights are reserved. Any use in violation of the foregoing       *
+;   restrictions may subject the user to criminal sanctions under    *
+;   applicable laws, as well as to civil liability for the breach of *
+;   the terms and conditions of this license.                        *
+;                                                                    *
+;   THIS SOFTWARE IS ?AS IS.? NO WARRANTIES, WHETHER EXPRESS, IMPLIED*
+;	OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED 	 *
+;	WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR  *  
+;	A PARTICULAR PURPOSE. IN NO EVENT WILL MICROCHIP BE LIABLE FOR   *
+;	ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL     *
+;	LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO  * 
+;	THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED *
+;	OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE FULLEST*
+;	EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY ON ALL CLAIMS *
+;	RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,  *
+;	YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.  				 * 
+;                                                                    *
+;   (c) Copyright 2022 Microchip Technology, All rights reserved.    *
+;*********************************************************************
+*
+* REVISION HISTORY:
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* Author            Date      Comments on this revision
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* MCHP	          22Sep06  First release of source file
+* MCHP            22May22  Added support to Unified Memory Model
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*
+* ADDITIONAL NOTES:
+*
+**********************************************************************/
+	
+	; Local inclusions.
+	.section __c30_signature, info, data
+        .word 0x0001
+        .word 0x0003
+        .word 0x0003
+		
+	.nolist
+	.include	"dspcommon.inc"		; MODCON, XBREV
+	.list
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.section .libdsp, code
+	
+	.global _toneGen32b
+
+	.equ	TF_FFT_SIZE,1024			; 10stage, 1024 point complex FFT
+
+;............................................................................
+_toneGen32b:
+;............................................................................
+; Context Save
+			PUSH	CORCON
+.ifndef PSV_ON
+			;PUSH 	DSRPAG
+			;PUSH 	DSWPAG
+.else
+			;PUSH	PSVPAG
+.endif
+			LNK     #20
+			
+			offsetsetup w5, w7
+;............................................................................
+
+;............................................................................
+;;	PSVPAG = __builtin_psvpage(&twiddleFactor);
+;;	CORCONbits.PSV = 1;	
+RRNC W4, W3
+.ifndef PSV_ON
+			MOV		w5,DSRPAG
+.else
+			MOV		w5,PSVPAG
+			BSET	CORCON,#2
+.endif
+
+			MOV		#4,w4
+			MUL.UU	w4,w1,w4				; 4*tone
+			MUL.UU	w4,w0,w4				; 4*tone*sample
+			SL		w2,#2,w1				; 2*phase
+			ADD		w4,w1,w4
+
+			MOV		#(TF_FFT_SIZE*2),w6
+			DEC		w6,w6	
+			AND		w6,w4,w7
+		
+
+			MOV		#ACCAL,w5
+			ADD		w7,w3,w7
+			BTSC 	w3, #15
+			BSET 	w7, #15                     ;Set PSV bit to avoid EA bit reset during to add operation 
+			LAC		[++w7],A
+			MOV		[--w7],[w5]
+	
+
+
+			INC		w6,w6
+			AND 	w6,w4,w6
+
+			BRA		nz,NEG_VAL
+			BRA		EXIT			
+
+
+NEG_VAL:
+			NEG		A
+
+
+EXIT:
+			MOV		[w5++],w0
+			MOV		[w5],w1
+;............................................................................
+; Context Restore
+			ULNK
+.ifndef PSV_ON
+			;POP     DSWPAG
+			;POP 	DSRPAG
+.else
+			;POP		PSVPAG
+.endif
+			POP		CORCON
+;............................................................................
+			RETURN	
+
