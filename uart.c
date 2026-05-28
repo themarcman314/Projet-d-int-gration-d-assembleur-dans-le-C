@@ -52,3 +52,4 @@ static void MYUART_WriteChar(char c) {
     while(!(U1STA & 1<<8)); // wait until we are finished transmitting
 }
 
+
