@@ -18,6 +18,8 @@
 #pragma config FNOSC = FRC // set Fast RC as oscillator, default is 7.27 MHz
 #pragma config FWDTEN = OFF // give SF control over disabling watch
 
+int results[400] = {0};
+
 void uart_init(void);
 void watchdog_disable(void);
 bool watchdog_did_timeout(void);
@@ -27,16 +29,17 @@ int main(void) {
     watchdog_disable();
     led_init();
     uart_init();
-    uint32_t result = 0;
-    uint16_t *result_p_upper = (uint16_t *)&result + 1;
+    
+        //uint16_t *result_p_upper = (uint16_t *)&result + 1;
     
     
-    printf("Q number 1: 0b");
-    print_bin(q_num_1, sizeof(q_num_1)* 8);
-    printf("Q number 2: 0b");
-    print_bin(q_num_2, sizeof(q_num_1)* 8);
-
-    printf("Q1 x Q2 = 0b");
+//    printf("Q number 1: 0b");
+//    print_bin(q_num_1, sizeof(q_num_1)* 8);
+//    printf("Q number 2: 0b");
+//    print_bin(q_num_2, sizeof(q_num_1)* 8);
+//
+//    printf("Q1 x Q2 = 0b");
+    
     CORCON &= ~(1); // explicitely enable fractional multiply for dsp (should be default)
     
     // IIR low pass filter
@@ -46,28 +49,35 @@ int main(void) {
     // for first order IIR we cannot benefit from MAC prefetching, since x[n] is a constant and we have to wait for y[n-1] to finish computing 
     asm(
         "clr A\n"
+        "mov %0, w1\n"
         "mov %1, w4\n"
         "mov %2, w5\n"
         "mov %3, w6\n"
-        "mov %4, w7\n"
+        "mov #0, w7\n"
         "mpy w4* w5, A\n" // alpha * x[n]
         "sac A, w5\n"
-        "do #1, loop_end\n" // loop 2x
+    
+        "do %4, loop_end\n"
         "mac w6* w7, A\n"
         "sac A, w7\n" // store result for next itteration
-        "mov w5, ACCAH\n"
-
+        "clr A\n"
+    /*
+     * It's important to note that there is in fact a loss of precision here
+     * we are truncating the lower 16 bits of our result.
+     * a product of two q15 numbers does in fact give us a q31 result.
+     * here we are choosing to ignore the lower bits and accept the loss in precision
+     */
+        "mov w7, [w1++]\n" // store upper word of A
+        "mov w5, ACCAH\n" // prepare for next mac
         "loop_end:"
-        "sac A, [%0]\n" // store upper word of A
-        "SFTAC A, #-16\n" // shift accumulator up by 16
-        "sac A, [--%0]\n" // store other half of A
-        : "+r" (result_p_upper)
-        : "r" (alpha_q), "r" (step_q), "r" (alpha_complement), "r" (result)
-        :"w4", "w5", "A", "w6", "w7"
+
+        : 
+        : "r" (results+1), "r" (alpha_q), "r" (step_q), "r" (alpha_complement), "r" (sizeof(results)/sizeof(int)-2)
+        :"w4", "w5", "w6", "w7", "w1"
     );
-    print_bin(result, sizeof(result) * 8U);
-    float result_f = Fract2Float((fractional) q_num_1);
-    printf("float: %f\n", result_f );
+
+    printf("\n\n\n\n");
+    for (int i = 0; i < sizeof(results)/sizeof(int); i++) printf("%d,%f\n", i, Fract2Float(results[i]));
     
     while(1) {
     }

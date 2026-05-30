@@ -22,7 +22,7 @@ const uint16_t q_num_2 = (uint16_t)(0.5 * SCALE);
 
 const uint16_t step_q = (uint16_t) (STEP * SCALE);
 const uint16_t alpha_q = (uint16_t) (ALPHA * SCALE);
-const uint16_t alpha_complement = 0b0111111111111111; // closest q15 value to 1
+const uint16_t alpha_complement = (uint16_t) ((1-ALPHA) * SCALE); // closest q15 value to 1
 
 
 
