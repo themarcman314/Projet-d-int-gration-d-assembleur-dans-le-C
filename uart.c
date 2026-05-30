@@ -1,9 +1,12 @@
 /*
- * Initialises UART with 115200 baudrate assuming 7.37 Fast RC as clock source
+ * Initialises UART with 115200 baudrate assuming 7.37 Mhz Fast RC as clock source
  * Pins used are 21 Rx and 22 (Tx) on SPDIP
  */
 
 #include "xc.h"
+
+#define DELAY_9uS asm volatile ("REPEAT, #34"); Nop(); 
+
 
 static void MYUART_WriteChar(char c);
 
@@ -30,9 +33,8 @@ void uart_init(void) {
     U1MODE |= 1U << 15U; // set UARTEN (UART enable bit)
     U1STA |= 1U << 12U; // Rx controlled by UART1
     U1STA |= 1U << 10U; // enable Tx
-    
-    unsigned int i = 0xffffU;
-    while(i--); // wait a little
+       
+    DELAY_9uS // wait 1/115200 = 8.7us (one bit) to ensure line starts high
 }
 
 
@@ -51,5 +53,3 @@ static void MYUART_WriteChar(char c) {
     U1TXREG = c; // write to tx buffer
     while(!(U1STA & 1<<8)); // wait until we are finished transmitting
 }
-
-
